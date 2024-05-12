@@ -145,17 +145,42 @@ func BenchmarkDecode16_10(b *testing.B) {
 		}
 	}
 }
+func BenchmarkDecodeSingle16_10(b *testing.B) {
+	b.StopTimer()
+	d := NewDecoder(QRCodeField256)
+	complete := getcomplete()
+	b.SetBytes(int64(len(QRCodeTestData) * b.N))
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		if n, err := d.DecodeSingle(complete, len(QRCodeTestECC)); err != nil || n != 0 {
+			b.Fail()
+		}
+	}
+}
 
 func BenchmarkDecode16_10With1Error(b *testing.B) {
 	b.StopTimer()
 	d := NewDecoder(QRCodeField256)
 	data := makecopy(QRCodeTestData)
-	data[1] = data[1] + 1
 	ecc := makecopy(QRCodeTestECC)
 	b.SetBytes(int64(len(data) * b.N))
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		if n, err := d.Decode(makecopy(data), ecc); err != nil || n != 1 {
+		data[1] = data[1] + 1
+		if n, err := d.Decode(data, ecc); err != nil || n != 1 {
+			b.Fail()
+		}
+	}
+}
+func BenchmarkDecodeSingle16_10With1Error(b *testing.B) {
+	b.StopTimer()
+	d := NewDecoder(QRCodeField256)
+	complete := getcomplete()
+	b.SetBytes(int64(len(QRCodeTestData) * b.N))
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		complete[1] = complete[1] + 1
+		if n, err := d.DecodeSingle(complete, len(QRCodeTestECC)); err != nil || n != 1 {
 			b.Fail()
 		}
 	}
@@ -177,6 +202,23 @@ func BenchmarkDecode128_16(b *testing.B) {
 	}
 }
 
+func BenchmarkDecodeSingle128_16(b *testing.B) {
+	b.StopTimer()
+	data := makecopy(Rand128)
+	ecc := make([]byte, 16)
+	e := NewEncoder(QRCodeField256, len(ecc))
+	e.Encode(data, ecc)
+	complete := append(data, ecc...)
+	d := NewDecoder(QRCodeField256)
+	b.SetBytes(int64(len(data) * b.N))
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		if n, err := d.DecodeSingle(complete, len(ecc)); err != nil || n != 0 {
+			b.Fail()
+		}
+	}
+}
+
 func BenchmarkDecode128_16With1Error(b *testing.B) {
 	b.StopTimer()
 	data := makecopy(Rand128)
@@ -184,11 +226,29 @@ func BenchmarkDecode128_16With1Error(b *testing.B) {
 	e := NewEncoder(QRCodeField256, len(ecc))
 	e.Encode(data, ecc)
 	d := NewDecoder(QRCodeField256)
-	data[1] = data[1] + 1
 	b.SetBytes(int64(len(data) * b.N))
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		if n, err := d.Decode(makecopy(data), ecc); err != nil || n != 1 {
+		data[1] = data[1] + 1
+		if n, err := d.Decode(data, ecc); err != nil || n != 1 {
+			b.Fail()
+		}
+	}
+}
+
+func BenchmarkDecodeSingle128_16With1Error(b *testing.B) {
+	b.StopTimer()
+	data := makecopy(Rand128)
+	ecc := make([]byte, 16)
+	e := NewEncoder(QRCodeField256, len(ecc))
+	e.Encode(data, ecc)
+	d := NewDecoder(QRCodeField256)
+	complete := append(data, ecc...)
+	b.SetBytes(int64(len(data) * b.N))
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		complete[1] = complete[1] + 1
+		if n, err := d.DecodeSingle(complete, len(ecc)); err != nil || n != 1 {
 			b.Fail()
 		}
 	}
@@ -201,12 +261,31 @@ func BenchmarkDecode128_16With2Error(b *testing.B) {
 	e := NewEncoder(QRCodeField256, len(ecc))
 	e.Encode(data, ecc)
 	d := NewDecoder(QRCodeField256)
-	data[1] = data[1] + 1
-	ecc[1] = ecc[1] + 1
 	b.SetBytes(int64(len(data) * b.N))
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		if n, err := d.Decode(makecopy(data), makecopy(ecc)); err != nil || n != 2 {
+		data[1] = data[1] + 1
+		ecc[1] = ecc[1] + 1
+		if n, err := d.Decode(data, ecc); err != nil || n != 2 {
+			b.Fail()
+		}
+	}
+}
+
+func BenchmarkDecodeSingle128_16With2Error(b *testing.B) {
+	b.StopTimer()
+	data := makecopy(Rand128)
+	ecc := make([]byte, 16)
+	e := NewEncoder(QRCodeField256, len(ecc))
+	e.Encode(data, ecc)
+	d := NewDecoder(QRCodeField256)
+	complete := append(data, ecc...)
+	b.SetBytes(int64(len(data) * b.N))
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		complete[1] = complete[1] + 1
+		complete[len(data)+1] = complete[len(data)+1] + 1
+		if n, err := d.DecodeSingle(complete, len(ecc)); err != nil || n != 2 {
 			b.Fail()
 		}
 	}

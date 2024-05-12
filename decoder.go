@@ -51,6 +51,7 @@ type Decoder interface {
 	//
 	// Returns the number of errors corrected or an error if decoding failed.
 	Decode(data, ecc []byte) (int, error)
+	DecodeSingle(data []byte, eccLen int) (int, error)
 }
 
 type rSDecoder struct {
@@ -62,15 +63,13 @@ func NewDecoder(f *Field) Decoder {
 	return &rSDecoder{f}
 }
 
-func (d *rSDecoder) Decode(data, ecc []byte) (int, error) {
+func (d *rSDecoder) DecodeSingle(dataWithEcc []byte, eccLen int) (int, error) {
 	// TODO(maruel): Temporary migration code.
-	received := make([]byte, len(data)+len(ecc))
-	copy(received, data)
-	copy(received[len(data):], ecc)
-	poly := &poly{d.f, received}
-	syndromeCoeffs := make([]byte, len(ecc))
+	dataLen := len(dataWithEcc) - eccLen
+	poly := &poly{d.f, dataWithEcc}
+	syndromeCoeffs := make([]byte, eccLen)
 	noError := true
-	for i := 0; i < len(ecc); i++ {
+	for i := 0; i < eccLen; i++ {
 		eval := poly.evaluateAt(d.f.f.Exp(i))
 		syndromeCoeffs[len(syndromeCoeffs)-1-i] = eval
 		if eval != 0 {
@@ -83,9 +82,9 @@ func (d *rSDecoder) Decode(data, ecc []byte) (int, error) {
 	}
 	// There was corruption found.
 	syndrome := makePoly(d.f, syndromeCoeffs)
-	sigma, omega, err := d.runEuclideanAlgorithm(buildMonomial(d.f, len(ecc), 1), syndrome, len(ecc))
+	sigma, omega, err := d.runEuclideanAlgorithm(buildMonomial(d.f, eccLen, 1), syndrome, eccLen)
 	if err != nil {
-		return 0, fmt.Errorf("runEuclidean() over %d bytes + %d ECC bytes failed: %s", len(data), len(ecc), err)
+		return 0, fmt.Errorf("runEuclidean() over %d bytes + %d ECC bytes failed: %s", dataLen, eccLen, err)
 	}
 	errorLocations := d.findErrorLocations(sigma)
 	if errorLocations == nil {
@@ -93,17 +92,13 @@ func (d *rSDecoder) Decode(data, ecc []byte) (int, error) {
 	}
 	errorMagnitudes := d.findErrorMagnitudes(omega, errorLocations)
 	for i := 0; i < len(errorLocations); i++ {
-		position := len(received) - 1 - d.f.f.Log(errorLocations[i])
+		position := len(dataWithEcc) - 1 - d.f.f.Log(errorLocations[i])
 		if position < 0 {
 			return 0, fmt.Errorf("bad error location: %d", position)
 		}
 		// Calculate the original value.
-		received[position] = d.f.f.Add(received[position], errorMagnitudes[i])
+		dataWithEcc[position] = d.f.f.Add(dataWithEcc[position], errorMagnitudes[i])
 	}
-	// Copy back.
-	// TODO(maruel): Work in-place instead.
-	copy(data, received)
-	copy(ecc, received[len(data):])
 	return len(errorLocations), nil
 }
 
@@ -187,4 +182,14 @@ func (d *rSDecoder) findErrorMagnitudes(errorEvaluator *poly, errorLocations []b
 		result[i] = d.f.f.Mul(errorEvaluator.evaluateAt(xiInverse), d.f.f.Inv(denominator))
 	}
 	return result
+}
+
+func (d *rSDecoder) Decode(data, ecc []byte) (int, error) {
+	received := make([]byte, len(data)+len(ecc))
+	copy(received, data)
+	copy(received[len(data):], ecc)
+	errorCount, decodeError := d.DecodeSingle(received, len(ecc))
+	copy(data, received)
+	copy(ecc, received[len(data):])
+	return errorCount, decodeError
 }
