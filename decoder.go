@@ -50,8 +50,7 @@ type Decoder interface {
 	// detect and correct errors, in-place, in the input.
 	//
 	// Returns the number of errors corrected or an error if decoding failed.
-	Decode(data, ecc []byte) (int, error)
-	DecodeInPlace(data []byte, eccLen int) (int, error)
+	Decode(data []byte, eccLen int) (int, error)
 }
 
 type rSDecoder struct {
@@ -63,7 +62,7 @@ func NewDecoder(f *Field) Decoder {
 	return &rSDecoder{f}
 }
 
-func (d *rSDecoder) DecodeInPlace(dataWithEcc []byte, eccLen int) (int, error) {
+func (d *rSDecoder) Decode(dataWithEcc []byte, eccLen int) (int, error) {
 	// TODO(maruel): Temporary migration code.
 	dataLen := len(dataWithEcc) - eccLen
 	poly := &poly{d.f, dataWithEcc}
@@ -182,14 +181,4 @@ func (d *rSDecoder) findErrorMagnitudes(errorEvaluator *poly, errorLocations []b
 		result[i] = d.f.f.Mul(errorEvaluator.evaluateAt(xiInverse), d.f.f.Inv(denominator))
 	}
 	return result
-}
-
-func (d *rSDecoder) Decode(data, ecc []byte) (int, error) {
-	received := make([]byte, len(data)+len(ecc))
-	copy(received, data)
-	copy(received[len(data):], ecc)
-	errorCount, decodeError := d.DecodeInPlace(received, len(ecc))
-	copy(data, received)
-	copy(ecc, received[len(data):])
-	return errorCount, decodeError
 }

@@ -97,26 +97,29 @@ func TestTooManyErrors(t *testing.T) {
 	complete := getcomplete()
 	corrupt(complete, QRCodeCorrectable+1)
 	d := NewDecoder(QRCodeField256)
-	if nb, err := d.Decode(complete[:len(QRCodeTestData)], complete[len(QRCodeTestData):]); err == nil {
+	if nb, err := d.Decode(complete, len(QRCodeTestECC)); err == nil {
 		t.Fatal("Recovered unrecoverable error!?!")
 	} else if nb != 0 {
 		t.Fatalf("Err != %d", nb)
 	}
 }
 
-func checkQR(t *testing.T, data, ecc []byte, nbErrors int) {
+func checkQR(t *testing.T, data []byte, ecc []byte, nbErrors int) {
 	goldenData := QRCodeTestData
 	goldenEcc := QRCodeTestECC
+
+	complete := append(data, ecc...)
+
 	d := NewDecoder(QRCodeField256)
-	errorsFound, err := d.Decode(data, ecc)
+	errorsFound, err := d.Decode(complete, len(ecc))
 	if err != nil {
 		t.Fatalf("Got error: %s", err)
 	}
 	if nbErrors != errorsFound {
 		t.Fatalf("Expected %d errors, got %d", nbErrors, errorsFound)
 	}
-	compare(t, data, goldenData, "Data differs")
-	compare(t, ecc, goldenEcc, "ECC differs")
+	compare(t, complete[:len(goldenData)], goldenData, "Data differs")
+	compare(t, complete[len(goldenData):], goldenEcc, "ECC differs")
 }
 
 func corrupt(received []byte, howMany int) {
@@ -135,12 +138,11 @@ func corrupt(received []byte, howMany int) {
 func BenchmarkDecode16_10(b *testing.B) {
 	b.StopTimer()
 	d := NewDecoder(QRCodeField256)
-	data := makecopy(QRCodeTestData)
-	ecc := makecopy(QRCodeTestECC)
-	b.SetBytes(int64(len(data) * b.N))
+	complete := getcomplete()
+	b.SetBytes(int64(len(QRCodeTestData) * b.N))
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		if n, err := d.Decode(data, ecc); err != nil || n != 0 {
+		if n, err := d.Decode(complete, len(QRCodeTestECC)); err != nil || n != 0 {
 			b.Fail()
 		}
 	}
@@ -149,13 +151,16 @@ func BenchmarkDecode16_10(b *testing.B) {
 func BenchmarkDecode16_10With1Error(b *testing.B) {
 	b.StopTimer()
 	d := NewDecoder(QRCodeField256)
-	data := makecopy(QRCodeTestData)
-	data[1] = data[1] + 1
-	ecc := makecopy(QRCodeTestECC)
-	b.SetBytes(int64(len(data) * b.N))
+	complete := getcomplete()
+	complete[1] = complete[1] + 1
+	b.SetBytes(int64(len(QRCodeTestData) * b.N))
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		if n, err := d.Decode(makecopy(data), ecc); err != nil || n != 1 {
+		if n, err := d.Decode(complete, len(QRCodeTestECC)); err != nil || n != 1 {
+			if err != nil {
+				b.Log("Err: ", err.Error())
+			}
+			b.Log(" N: ", n)
 			b.Fail()
 		}
 	}
@@ -171,7 +176,7 @@ func BenchmarkDecode128_16(b *testing.B) {
 	b.SetBytes(int64(len(data) * b.N))
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		if n, err := d.Decode(data, ecc); err != nil || n != 0 {
+		if n, err := d.Decode(append(data, ecc...), len(ecc)); err != nil || n != 0 {
 			b.Fail()
 		}
 	}
@@ -188,7 +193,7 @@ func BenchmarkDecode128_16With1Error(b *testing.B) {
 	b.SetBytes(int64(len(data) * b.N))
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		if n, err := d.Decode(makecopy(data), ecc); err != nil || n != 1 {
+		if n, err := d.Decode(append(data, ecc...), len(ecc)); err != nil || n != 1 {
 			b.Fail()
 		}
 	}
@@ -206,7 +211,7 @@ func BenchmarkDecode128_16With2Error(b *testing.B) {
 	b.SetBytes(int64(len(data) * b.N))
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		if n, err := d.Decode(makecopy(data), makecopy(ecc)); err != nil || n != 2 {
+		if n, err := d.Decode(append(data, ecc...), len(ecc)); err != nil || n != 2 {
 			b.Fail()
 		}
 	}
