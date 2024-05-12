@@ -28,14 +28,14 @@ func ExampleNewEncoder() {
 }
 
 func ExampleNewDecoder() {
-	data := []byte("hello, wXrld\xAB\xA7")
+	dataWithEcc := []byte("hello, wXrld\xAB\xA7")
 	eccLen := 2
-	fmt.Printf("Corrupted data: %s\n", data[:len(data)-eccLen])
+	fmt.Printf("Corrupted data: %s\n", dataWithEcc[:len(dataWithEcc)-eccLen])
 	d := rs.NewDecoder(rs.QRCodeField256)
-	if nb, err := d.Decode(data, eccLen); err != nil || nb != 1 {
+	if nb, err := d.Decode(dataWithEcc, eccLen); err != nil || nb != 1 {
 		fmt.Printf("Expected 1 fix, for %d. Error: %s\n", nb, err)
 	}
-	fmt.Printf("Fixed data: %s\n", data[:len(data)-eccLen])
+	fmt.Printf("Fixed data: %s\n", dataWithEcc[:len(dataWithEcc)-eccLen])
 	// Output:
 	// Corrupted data: hello, wXrld
 	// Fixed data: hello, world
